@@ -1,11 +1,186 @@
 ﻿using System;
 
+// @TEACHING: having to start with sorting rendering, world generation, and layers seems pretty rough.
+//            Probably much better to start with a screen based thing where the rendering can just go over
+//            each position and check it against a few entities.
+
+// @TODO: make EntityDatabase and Systems non-global so we have them in the local window when debugging program
 namespace ASCII_RPG
 {
 
+    
+    public class DynamicArray<T> {
+        T[] items;
+        int capacity;
+
+        public int count;
+
+        public T this[int i] {
+            get { return items[i]; }
+            set { items[i] = value; }
+        }
+
+        void EnsureCapacity() {
+            if (count + 1 > capacity) {
+                capacity *= 2;
+
+                items = new T[capacity];
+            }
+        }
+
+        public void Clear() {
+            count = 0;
+        }
+
+        public void PushBack(T item) {
+            EnsureCapacity();
+
+            items[count] = item;
+            count++;
+        }
+
+        public T PopBack() {
+            count--;
+            return items[count];
+        }
+
+        public DynamicArray(int capacity_) {
+            capacity = capacity_;
+            items = new T[capacity];
+        }
+    }
+
+
+    // What if you cant die? Get knocked unconscious and have the world go on without you. Like MountAndBlade
+    // Sometimes you just get knocked out for longer. Maybe you can lose your memory, so it isnt just a
+    // roguelike with progression, or a regular roguelike where the inability to die is only narrative
+    // It should be a race, dragonball style to retrieve some items. Whoever gets them has an affect on the world
+    // Different factions/enemies do different things with them.
+    // Generate different items.
+    // Generate wishes that people make.
+    // Maybe rather than doing the wishes we just say that the item does a thing (but then it doesnt watter
+    // who gets it so that isnt as interesting...)
+    //    Like lets say you want to prevent A from getting it because you dont like what they'd do,
+    //    but you dont really mind what B would do.
+    // What would it do for you tho?
+    // "I wish that X was Y"
+    // "I wish I had X"
+    // "I wish that X didnt have Y"
+    // YOU WERE THE LAST WISH
+    // Merlin style living backwards? But then are people making wishes about how things would have been
+    //    in the past? It doesnt make sense if there wish happens in the past but has no effect on present...
+    //    Except if you're living backwards and they say "I wish I had been born a woman" then you'd meet
+    //    that same person as a woman in the past.
+    //    If there was a monkey-paw consequence tho maybe it would work, like "I wish there was enough water
+    //    in my village" creates a drought across the land. But then it would have done that in the past right?
+    //    But maybe the village had enough water in the past also?
+    // You keep running into characters who havent met you yet. No one ever remembers you!
+    //     Except Arthur did know merlin as a kid, its just that Merlin hasnt lived that yet? He's learning from
+    //     old arthur what he should teach young arthur, even tho it wont change old arthur because that's already
+    //     happened.
+    // Could be a puzzle element about what you're supposed to wish for.
+    // This all seems very complicated, and I could just say that you were the Last Wish and are living
+    // into the future. Tho I still like the idea of descending into the past.
+    // Wait tho, if people are making wishes for the future, then you already know what those wishes were
+    //    (or at least you can guess), so maybe you know the dire consequences of their wish, and can try
+    //    to thwart them. Part of the puzzle is deciphering who got the wish, and maybe rearranging who should
+    //    get it now. Of course you wont see the consequences of the wish going into the past.
+    //    UGH this is probably more complicated than its worth. The game is not really about causality,
+    //    its about competition and wish making.
+
+    // @TODO: So that we can reuse indices and entityIDs we'll need to reference entities
+    // with handles.
+    // Keep an index for each type in the entity struct so we can get instant access to every component
     struct Entity {
-        int id;
+        public int id;
+
+        public int generation;
+
+        public Entity(int id_) {
+            id = id_;
+            generation = 0;
+        }
+
+        public void InvalidEntity() {
+            id = 0;
+            generation = 0;
+        }
     };
+
+    // @NOTE: for every new component we define we need to add it here.
+    enum ComponentType {
+        Renderable,
+        Collidable,
+        Flammable,
+
+        Count,
+    };
+
+    struct ComponentReferences {
+        public int[] references;
+
+        public void Init() {
+            references = new int[(int)ComponentType.Count];
+        }
+
+        public void Clear() {
+            for (int i = 0; i < (int)ComponentType.Count; i++) {
+                references[i] = -1;
+            }
+        }
+
+        public bool IsReferenceValid(int reference) {
+            return references[reference] >= 0;
+        }
+    };
+
+    static class EntityDatabase {
+        static int nextID = 1;
+        static int entityCount;
+        static DynamicArray<int> freeList = new DynamicArray<int>(256);
+
+        public static DynamicArray<Entity> entities = new DynamicArray<Entity>(1024);
+
+        // public static EntityDatabase() {
+        //     nextID = 1;
+        //     entityCount = 0;
+        //     freeList = new DynamicArray<int>(256);
+        //     entities = new DynamicArray<Entity>(1024);
+        // }
+        
+        public static bool IsEntityValid(Entity e) {
+            return e.generation == entities[e.id].generation;
+        }
+
+        public static void AddEntity() {
+            entityCount++;
+            
+            int index = 0;
+            if (freeList.count > 0) {
+                index = freeList.PopBack();
+            }
+            else {
+                index = nextID;
+                nextID++;
+            }
+
+            entities[index] = new Entity(index);
+        }
+
+        public static void DeleteEntity(Entity e) {
+            entityCount--;
+
+            // @TODO: defer this! Need to remove all its components!!!
+            if (IsEntityValid(e)) {
+                freeList.PushBack(e.id);
+
+                e.generation++;
+
+                // @NOTE: we cant do entities[e.id].generation++ because its not a reference
+                entities[e.id] = e;
+            }
+        }
+    }
 
     // The difference between structs and classes are that classes are heap allocated
     // and passed by reference. Structs are pass by value and usually allocated on the stack
@@ -27,27 +202,24 @@ namespace ASCII_RPG
         }
     };
 
-    class PositionSystem {
-        
-    }
-
     struct Box {
         public Vector2 min;
         public Vector2 max;
-        
-        public bool PointInBox(Vector2 point, Box box) {
+
+        // @NOTE: INCLUSIVE
+        public bool PointInBox(Vector2 point) {
             bool result = false;
 
-            result = (point.x >= box.min.x && point.x <= box.max.x) &&
-                (point.y >= box.min.y && point.y <= box.max.y);
+            result = (point.x >= min.x && point.x <= max.x) &&
+                (point.y >= min.y && point.y <= max.y);
 
             return result;
         }
 
-        public bool BoxTest(Box boxA, Box boxB) {
+        public bool BoxTest(Box boxB) {
             bool collide = false;
 
-            collide = PointInBox(boxA.min, boxB) || PointInBox(boxA.max, boxB);
+            collide = this.PointInBox(boxB.min) || this.PointInBox(boxB.max);
 
             return true;
         }
@@ -75,15 +247,57 @@ namespace ASCII_RPG
         // @NOTE: this box is relative to the players position
         // and gives us dimensions for what to render
         public Box box;
+        public Vector2 position;
     };
+
+    
+    class Positions {
+        public DynamicArray<Vector2> positions;
+        public DynamicArray<int> freeList;
+
+        public Positions() {
+            positions = new DynamicArray<Vector2>(1024);
+            freeList = new DynamicArray<int>(1024);
+        }
+
+        public void Add(Vector2 pos) {
+            positions.PushBack(pos);
+        }
+
+        public void Remove(Entity e) {
+            freeList.PushBack(e.id);
+        }
+    }
     
     struct Renderable {
-        int symbol;
+        public int symbol;
+        public ConsoleColor color;
+        public int layer;
 
-        public Renderable(int n) {
+        public Renderable(int n, ConsoleColor c, int l) {
             symbol = n;
+            color = c;
+            layer = l;
         }
     };
+
+    class Renderables {
+        public DynamicArray<Renderable> renderables;
+        public DynamicArray<int> freeList;
+
+        public Renderables () {
+            renderables = new DynamicArray<Renderable>(1024);
+            freeList = new DynamicArray<int>(1024);
+        }
+
+        public void Add(Renderable pos) {
+            renderables.PushBack(pos);
+        }
+
+        public void Remove(Entity e) {
+            freeList.PushBack(e.id);
+        }        
+    }
 
     struct Collidable {
         bool collides;
@@ -94,74 +308,45 @@ namespace ASCII_RPG
     };
 
     struct Grass {
-        Vector2 position;
-        Renderable renderable;
-        Flammable flammable;
-
         public Grass(Vector2 pos) {
-            position = pos;
-            renderable = new Renderable((int)'/');
+            EntityDatabase.AddEntity();
+
+            if (pos.x % 2 == 0) {
+                Systems.renderables.Add(new Renderable((int)'/', ConsoleColor.DarkGreen, 0));
+            }
+            else {
+                Systems.renderables.Add(new Renderable((int)'/', ConsoleColor.Green, 0));
+            }
+
+            Systems.positions.Add(pos);
         }
     };
 
-    // When something moves, if that space is already occupied, and is collidable, then the move fails
+    struct Player {
+        public Player(Vector2 pos) {
+            Systems.renderables.Add(new Renderable((int)'@', ConsoleColor.White, 1));
+            Systems.positions.Add(pos);
+        }
+    }
 
-    // We want each flammable thing to determine what it does when its on fire
-    // Could we do this with messaging? The flames would just post a message
-    // which other components would respond to? Like health would see "oh I'm buring, decrement health"
-    // grass would say "change my symbol"
-    // Everything else is responsible for saying: "hey, if i'm no fire, do a thing"?
-    // Maybe its easiest to just do a big ol branch in the fire code? For all the types that respond to fire
-    // We check to see if they have that component, and if so we burn em.
-    // For performance what I'd like is to grab everything that is on fire and is also grass.
-    // If we keep IDs ascending would this work?
-    //    F F F F F F F F F
-    //    G G P C G G C G G
-    //    4 5 1 2 6 7 3 8 9
-    //    But wouldnt they be put in this order then?
-    //    P C C G G G G G G?
-    // Can we then make the assumption that everything in flammable between the first ID of grass
-    // and the last ID of grass is a grass?
-    // We can create new entities, but cant add/remove components from them
-    //    That means first and last indices arent enough, we want to store ranges if the id isnt lastID + 1
-    // We should also keep free indices so that we never have to change the indices on any of our entities.
-
+    static class Systems {
+        public static Positions positions = new Positions();
+        public static Renderables renderables = new Renderables();
+        
+    }
     
-    // struct Grass {
-    //     int positionIndex;
-    //     int renderableIndex;
-    //     int flammableIndex;
-
-    //     public Grass() {
-    //         positionIndex = positionSys.AddPosition();
-    //         renderableIndex = renderableSys.AddRenderable('/');
-    //         flammableIndex = flammableSys.AddFlammable();
-    //     }
-    // }
-    // Do we even need this tho? Cant we just also have an empty grass which in flammable we'll just
-    // loop up or something?
-    // And maybe we dont even need that? maybe Grass is just an enum type of material?
-    // Or is Grass a thing that has material?
-    // What if we want a sword to have a material? (i guess in this case sword wouldnt be empty tho...)
-    // Lets say given the sword we want to look up its material (sparse versus dense array): first I guess we'd
-    // look up the range its in (tho these could be reallllly large) and then we'd have to search
-    //    If we say that the dense matrix is stored with holes that would solve our problem in this case
-    //    And going from material->sword would probably be fine because its very sparse
-    
+    // BOTW
     // Elements and materials
     // Elements can change a materials state
     // Elements can change an elements state
     // Materials cant change other materials
 
-    
     // Combine runes together to create spells
     // Many moves will have "activate" and "target"
 
-    // @TODO: for rendering things we want to sort them all top left -> top right
-    // We also want to efficiently find out what things to render and what to not
-    // This will involve grouping things into cells and then finding out what cells
-    //   we are rendering by doing box collision tests
     class Program {
+
+        static Player player = new Player(new Vector2(2, 2));
 
         static Grass[] grass = new Grass[20 * 20];
         static void GenerateWorld() {
@@ -175,25 +360,90 @@ namespace ASCII_RPG
 
 
         static Camera camera;
-        static int cameraSize = 20;
-        static int renderableEntities = cameraSize * cameraSize;
+        static int cameraHalfSize = 4;
+        static int cameraSize = (cameraHalfSize * 2);
+        static int cameraPitch = cameraSize + 1;
+        static int renderableEntities = (cameraPitch * cameraPitch);
+
+        // * 2 to assume that there are two things in every spot, even tho there rarely are, we likely
+        // will never have to resize this DynamicArray
+        static DynamicArray<Renderable> renderables = new DynamicArray<Renderable>(renderableEntities * 2);
+        static DynamicArray<Vector2> renderablePositions = new DynamicArray<Vector2>(renderableEntities * 2);
+        static Renderable[] renderablesSorted = new Renderable[renderableEntities];
+        static Vector2[] renderablePositionsSorted = new Vector2[renderableEntities];
 
         static void CollectRenderables() {
-            
-        }
+            renderables.Clear();
+            renderablePositions.Clear();
 
-        
-        Renderable[] renderables = new Renderable[renderableEntities];
+            Box cameraWorldBox = new Box(camera.position, cameraHalfSize);
+            
+            for (int i = 0; i < Systems.renderables.renderables.count; i++) {
+                // @NOTE: assuming everything renderable has a position, so why not just group them together dummy
+                // @TODO: need to resolve two things in the same spot
+                if (cameraWorldBox.PointInBox(Systems.positions.positions[i])) {
+                    renderables.PushBack(Systems.renderables.renderables[i]);
+                    renderablePositions.PushBack(Systems.positions.positions[i]);
+                }
+            }
+
+            // @PERF: this is VERY BAD. If we're rendering 100 entities we do this potentialy 100^2 times!!!
+            // What are some ways we could make it better?
+            // @TODO: sort the renderables!
+            Vector2 currPosition = new Vector2(cameraWorldBox.min.x, cameraWorldBox.min.y);
+            // @NOTE: this is relative to cameraWorldBox.min, and we use it to index into the renderables
+            //        when overwriting a previous entry because of depth issues.
+            Vector2 currPositionRelative = new Vector2(0, 0);
+            int r = 0;
+            while (r < renderableEntities) {
+
+                bool foundRenderableAtPosition = false;
+                for (int i = 0; i < renderables.count; i++) {
+
+                    // @PERF: because multiple things could be at the same position we have to check EVERYTHING
+                    // to make sure we pick the thing with the topmost layer, which is very unfortunate
+                    if (currPosition.Equals(renderablePositions[i])) {
+
+                        if (foundRenderableAtPosition) {
+                            if (renderablesSorted[r].layer < renderables[i].layer) {
+                                renderablesSorted[r] = renderables[i];
+                                renderablePositionsSorted[r] = renderablePositions[i];
+                            }
+                        }
+                        else {
+                            renderablePositionsSorted[r] = renderablePositions[i];
+                            renderablesSorted[r] = renderables[i];
+                            foundRenderableAtPosition = true;
+                        }
+                    }
+                }
+                
+                if (foundRenderableAtPosition) {
+                    r++;
+                        
+                    currPositionRelative.x++;
+                    currPosition.x++;
+                    if (currPosition.x > cameraWorldBox.max.x) {
+                        currPosition.x = cameraWorldBox.min.x;
+                        currPosition.y++;
+
+                        currPositionRelative.x = 0;
+                        currPositionRelative.y++;
+                    }
+                }
+            }
+        }
 
         static void RenderWorld() {
             int x = 0;
             for (int i = 0; i < renderableEntities; i++) {
 
-                Console.Write(".");
+                Console.ForegroundColor = renderablesSorted[i].color;
+                Console.Write((char)renderablesSorted[i].symbol);
 
                 x++;
 
-                if (x == cameraSize) {
+                if (x == cameraPitch) {
                     x = 0;
                     Console.WriteLine();
                 }
@@ -201,18 +451,61 @@ namespace ASCII_RPG
 
             Console.WriteLine();
         }
+
+        static void UpdatePlayer(String key) {
+            switch (key) {
+                case "W" : {
+                    Systems.positions.positions[0] = new Vector2(Systems.positions.positions[0].x,
+                                                                 Systems.positions.positions[0].y - 1);
+                } break;
+
+                case "S" : {
+                    Systems.positions.positions[0] = new Vector2(Systems.positions.positions[0].x,
+                                                                 Systems.positions.positions[0].y + 1);
+                } break;
+
+                case "A" : {
+                    Systems.positions.positions[0] = new Vector2(Systems.positions.positions[0].x - 1,
+                                                                 Systems.positions.positions[0].y);
+                } break;
+
+                case "D" : {
+                    Systems.positions.positions[0] = new Vector2(Systems.positions.positions[0].x + 1,
+                                                                 Systems.positions.positions[0].y);
+                } break;
+            }
+        }
+
+        
         
         static void Main(string[] args) {
-            camera.box = new Box(cameraSize);
+            
+            camera.box = new Box(cameraHalfSize);
+            camera.position = new Vector2(cameraHalfSize, cameraHalfSize);
             
             GenerateWorld();
 
             while (true) {
-                Console.Clear();
+                ConsoleKeyInfo keyInfo = Console.ReadKey();
 
+                String key = keyInfo.Key.ToString();
+
+                UpdatePlayer(key);
+                // @TODO: only do this if we can fit into the corner
+                // @TODO: actually I'd rather implement world wrapping for design reasons anyway
+                // @TODO: for world wrapping I dont want top Y to lead to bottom Y, but map like on a sphere
+                //        Honestly tho that might not really matter
+                //camera.position = Systems.positions.positions[0];
+                
+                CollectRenderables();
+
+                // @NOTE: dont clear until we have renderables so there isnt a blankscreen
+                // while we do the search (it should be really fast anyway but just in case)
+                Console.Clear();
+                
                 RenderWorld();
 
-                Console.ReadKey();
+                
             }
             
             // Console.BackgroundColor = ConsoleColor.Blue;
