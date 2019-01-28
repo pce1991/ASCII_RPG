@@ -193,6 +193,12 @@ namespace ASCII_RPG
             x = x_;
             y = y_;
         }
+
+
+        public Vector2(Vector2 v) {
+            x = v.x;
+            y = v.y;
+        }
         
         public Vector2 Add(Vector2 a) {
             Vector2 result;
@@ -344,16 +350,21 @@ namespace ASCII_RPG
     // Combine runes together to create spells
     // Many moves will have "activate" and "target"
 
+    static class World {
+        public static int width = 20;
+        public static int height = 20;
+    }
+
     class Program {
 
         static Player player = new Player(new Vector2(2, 2));
 
-        static Grass[] grass = new Grass[20 * 20];
+        static Grass[] grass = new Grass[World.width * World.height];
         static void GenerateWorld() {
-            for (int y = 0; y < 20; y++) {
-                for (int x = 0; x < 20; x++) {
+            for (int y = 0; y < World.height; y++) {
+                for (int x = 0; x < World.width; x++) {
                     Vector2 position = new Vector2(x, y);
-                    grass[y + (20 * x)] = new Grass(position);
+                    grass[y + (World.width * x)] = new Grass(position);
                 }
             }
         }
@@ -387,6 +398,7 @@ namespace ASCII_RPG
                 }
             }
 
+            // @TODO: make this work with wrapping!
             // @PERF: this is VERY BAD. If we're rendering 100 entities we do this potentialy 100^2 times!!!
             // What are some ways we could make it better?
             // @TODO: sort the renderables!
@@ -454,29 +466,48 @@ namespace ASCII_RPG
 
         static void UpdatePlayer(String key) {
             switch (key) {
-                case "W" : {
+                case "W" :
+                case "UpArrow" : {
                     Systems.positions.positions[0] = new Vector2(Systems.positions.positions[0].x,
                                                                  Systems.positions.positions[0].y - 1);
                 } break;
 
-                case "S" : {
+                case "S" :
+                case "DownArrow" : {
                     Systems.positions.positions[0] = new Vector2(Systems.positions.positions[0].x,
                                                                  Systems.positions.positions[0].y + 1);
                 } break;
 
-                case "A" : {
+                case "A" : 
+                case "LeftArrow" : {
                     Systems.positions.positions[0] = new Vector2(Systems.positions.positions[0].x - 1,
                                                                  Systems.positions.positions[0].y);
                 } break;
 
-                case "D" : {
+                case "D" : 
+                case "RightArrow" : {
                     Systems.positions.positions[0] = new Vector2(Systems.positions.positions[0].x + 1,
                                                                  Systems.positions.positions[0].y);
                 } break;
             }
-        }
 
-        
+            Vector2 wrappedPos = new Vector2(Systems.positions.positions[0]);
+            if (Systems.positions.positions[0].x < 0) {
+                wrappedPos.x = World.width;
+            }
+            else if (Systems.positions.positions[0].x > World.width) {
+                wrappedPos.x = 0;
+            }
+
+            if (Systems.positions.positions[0].y < 0) {
+                wrappedPos.y = World.height;
+            }
+            else if (Systems.positions.positions[0].y > World.height) {
+                wrappedPos.y = 0;
+            }
+
+            Systems.positions.positions[0] = wrappedPos;
+        }
         
         static void Main(string[] args) {
             

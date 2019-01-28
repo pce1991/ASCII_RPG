@@ -1,7 +1,7 @@
-C:\Users\pce\ASCII_RPG\ASCII_RPG\obj\Debug\ASCII_RPG.csprojAssemblyReference.cache
 C:\Users\pce\ASCII_RPG\ASCII_RPG\obj\Debug\ASCII_RPG.csproj.CoreCompileInputs.cache
 C:\Users\pce\ASCII_RPG\ASCII_RPG\bin\Debug\ASCII_RPG.exe.config
 C:\Users\pce\ASCII_RPG\ASCII_RPG\bin\Debug\ASCII_RPG.exe
 C:\Users\pce\ASCII_RPG\ASCII_RPG\bin\Debug\ASCII_RPG.pdb
 C:\Users\pce\ASCII_RPG\ASCII_RPG\obj\Debug\ASCII_RPG.exe
 C:\Users\pce\ASCII_RPG\ASCII_RPG\obj\Debug\ASCII_RPG.pdb
+C:\Users\pce\ASCII_RPG\ASCII_RPG\obj\Debug\ASCII_RPG.csprojResolveAssemblyReference.cache
