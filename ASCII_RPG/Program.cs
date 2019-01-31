@@ -320,6 +320,9 @@ namespace ASCII_RPG
             if (pos.x % 2 == 0) {
                 Systems.renderables.Add(new Renderable((int)'/', ConsoleColor.DarkGreen, 0));
             }
+            else if (pos.y % 2 == 0) {
+                Systems.renderables.Add(new Renderable((int)'/', ConsoleColor.Cyan, 0));
+            }
             else {
                 Systems.renderables.Add(new Renderable((int)'/', ConsoleColor.Green, 0));
             }
@@ -398,14 +401,10 @@ namespace ASCII_RPG
                 }
             }
 
-            // @TODO: make this work with wrapping!
             // @PERF: this is VERY BAD. If we're rendering 100 entities we do this potentialy 100^2 times!!!
             // What are some ways we could make it better?
             // @TODO: sort the renderables!
             Vector2 currPosition = new Vector2(cameraWorldBox.min.x, cameraWorldBox.min.y);
-            // @NOTE: this is relative to cameraWorldBox.min, and we use it to index into the renderables
-            //        when overwriting a previous entry because of depth issues.
-            Vector2 currPositionRelative = new Vector2(0, 0);
             int r = 0;
             while (r < renderableEntities) {
 
@@ -433,14 +432,10 @@ namespace ASCII_RPG
                 if (foundRenderableAtPosition) {
                     r++;
                         
-                    currPositionRelative.x++;
                     currPosition.x++;
                     if (currPosition.x > cameraWorldBox.max.x) {
                         currPosition.x = cameraWorldBox.min.x;
                         currPosition.y++;
-
-                        currPositionRelative.x = 0;
-                        currPositionRelative.y++;
                     }
                 }
             }
@@ -491,22 +486,22 @@ namespace ASCII_RPG
                 } break;
             }
 
-            Vector2 wrappedPos = new Vector2(Systems.positions.positions[0]);
+            Vector2 blockedPos = new Vector2(Systems.positions.positions[0]);
             if (Systems.positions.positions[0].x < 0) {
-                wrappedPos.x = World.width;
+                blockedPos.x = 0;
             }
-            else if (Systems.positions.positions[0].x > World.width) {
-                wrappedPos.x = 0;
+            else if (Systems.positions.positions[0].x >= World.width) {
+                blockedPos.x = World.width - 1;
             }
 
             if (Systems.positions.positions[0].y < 0) {
-                wrappedPos.y = World.height;
+                blockedPos.y = 0;
             }
-            else if (Systems.positions.positions[0].y > World.height) {
-                wrappedPos.y = 0;
+            else if (Systems.positions.positions[0].y >= World.height) {
+                blockedPos.y = World.height - 1;
             }
 
-            Systems.positions.positions[0] = wrappedPos;
+            Systems.positions.positions[0] = blockedPos;
         }
         
         static void Main(string[] args) {
@@ -526,7 +521,21 @@ namespace ASCII_RPG
                 // @TODO: actually I'd rather implement world wrapping for design reasons anyway
                 // @TODO: for world wrapping I dont want top Y to lead to bottom Y, but map like on a sphere
                 //        Honestly tho that might not really matter
-                //camera.position = Systems.positions.positions[0];
+                camera.position = Systems.positions.positions[0];
+                Box cameraWorldBox = new Box(camera.position, cameraHalfSize);
+                if (cameraWorldBox.min.x < 0) {
+                    camera.position.x += (0 - cameraWorldBox.min.x);
+                }
+                if (cameraWorldBox.min.y < 0) {
+                    camera.position.y += (-cameraWorldBox.min.y);
+                }
+
+                if (cameraWorldBox.max.x >= World.width) {
+                    camera.position.x = (World.width - cameraHalfSize) - 1;
+                }
+                if (cameraWorldBox.max.y >= World.height) {
+                    camera.position.y = (World.height - cameraHalfSize) - 1;
+                }
                 
                 CollectRenderables();
 
